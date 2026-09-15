@@ -1,3 +1,10 @@
+mcp-server-groupoffice (0.2.0) unstable; urgency=medium
+
+  * Add Debian packaging, including companion package
+    mcprack-mcp-server-groupoffice for mcprack MCP-catalog registration.
+
+ -- Vítězslav Dvořák <info@vitexsoftware.cz>  Tue, 15 Sep 2026 07:52:52 +0200
+
 mcp-server-groupoffice (0.1.0) unstable; urgency=medium
 
   * Initial release, including companion package
