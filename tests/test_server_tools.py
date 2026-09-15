@@ -2,10 +2,38 @@ import base64
 
 from fastmcp import Client
 
+from groupoffice_mcp_server.client import GroupOfficeClient, GroupOfficeError
+
 
 async def call(server, name, args):
     async with Client(server) as c:
         return await c.call_tool(name, args)
+
+
+class TestListToolErrorShape:
+    """Every query_*/list_* tool declares -> list[dict[str, Any]]. FastMCP
+    validates a tool's structured output against that schema, so the error
+    branch must return the error dict wrapped in a list, not the bare dict -
+    a bare dict fails schema validation and surfaces as an opaque client-side
+    RuntimeError instead of a clean, catchable tool error. Caught by live
+    testing against a real GroupOffice instance."""
+
+    async def test_query_contacts_error_is_wrapped_in_a_list(self, server, mock_client):
+        mock_client.query_and_get.side_effect = GroupOfficeError("boom", status=500)
+        mock_client.handle_api_error.side_effect = GroupOfficeClient.handle_api_error
+        result = await call(server, "query_contacts", {})
+        assert result.is_error is False
+        assert isinstance(result.data, list)
+        assert result.data[0]["error"] is True
+        assert result.data[0]["message"] == "boom"
+
+    async def test_list_addressbooks_error_is_wrapped_in_a_list(self, server, mock_client):
+        mock_client.query_and_get.side_effect = GroupOfficeError("boom", status=500)
+        mock_client.handle_api_error.side_effect = GroupOfficeClient.handle_api_error
+        result = await call(server, "list_addressbooks", {})
+        assert result.is_error is False
+        assert isinstance(result.data, list)
+        assert result.data[0]["error"] is True
 
 
 class TestAddressBookAndCalendarAndTaskListLists:
@@ -31,7 +59,7 @@ class TestContact:
         mock_client.query_and_get.return_value = [{"id": "1"}]
         await call(server, "query_contacts", {"addressbook_id": "5", "limit": 20})
         mock_client.query_and_get.assert_called_once_with(
-            "Contact", filter={"addressbookId": "5"}, limit=20, properties=None
+            "Contact", filter={"addressBookId": "5"}, limit=20, properties=None
         )
 
     async def test_query_contacts_without_addressbook_id_passes_none_filter(
@@ -67,23 +95,23 @@ class TestContact:
 
 
 class TestCalendarEvent:
-    async def test_query_calendar_events_merges_window_filter(self, server, mock_client):
+    async def test_query_calendar_events_merges_start_filter(self, server, mock_client):
         mock_client.query_and_get.return_value = []
         await call(
             server,
             "query_calendar_events",
-            {"calendar_id": "1", "start": "2026-01-01", "end": "2026-01-02"},
+            {"calendar_id": "1", "start": "2026-01-01"},
         )
         mock_client.query_and_get.assert_called_once_with(
             "CalendarEvent",
-            filter={"calendarId": "1", "start": "2026-01-01", "end": "2026-01-02"},
+            filter={"calendarId": "1", "start": "2026-01-01"},
             limit=50,
             properties=None,
         )
 
     async def test_create_calendar_event(self, writable_server, mock_client):
         mock_client.set.return_value = {"created": {"new": {"id": "1"}}}
-        data = {"title": "Meeting", "start": "2026-01-01T10:00:00Z", "end": "2026-01-01T11:00:00Z"}
+        data = {"title": "Meeting", "start": "2026-01-01T10:00:00Z", "duration": "PT1H"}
         await call(writable_server, "create_calendar_event", {"data": data})
         mock_client.set.assert_called_once_with("CalendarEvent", create={"new": data})
 
@@ -94,11 +122,11 @@ class TestCalendarEvent:
 
 
 class TestTask:
-    async def test_query_tasks_merges_tasklist_and_completed(self, server, mock_client):
+    async def test_query_tasks_merges_tasklist_id(self, server, mock_client):
         mock_client.query_and_get.return_value = []
-        await call(server, "query_tasks", {"tasklist_id": "3", "completed": False})
+        await call(server, "query_tasks", {"tasklist_id": "3"})
         mock_client.query_and_get.assert_called_once_with(
-            "Task", filter={"taskListId": "3", "completed": False}, limit=50, properties=None
+            "Task", filter={"tasklistId": "3"}, limit=50, properties=None
         )
 
     async def test_create_task(self, writable_server, mock_client):
@@ -159,7 +187,7 @@ class TestHistory:
         mock_client.query_and_get.return_value = []
         await call(server, "query_history", {"entity": "Contact", "entity_id": "42"})
         mock_client.query_and_get.assert_called_once_with(
-            "History", filter={"entity": "Contact", "entityId": "42"}, limit=50, properties=None
+            "LogEntry", filter={"entity": "Contact", "entityId": "42"}, limit=50, properties=None
         )
 
 

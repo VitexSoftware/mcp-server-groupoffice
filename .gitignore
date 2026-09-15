@@ -1,3 +1,8 @@
+# Claude Code local session state (may contain permission grants that echo
+# command arguments verbatim, including secrets passed via env var on the
+# command line - never commit this)
+.claude/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

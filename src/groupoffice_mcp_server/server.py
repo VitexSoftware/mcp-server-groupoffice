@@ -61,7 +61,7 @@ SUPPORTED_ENTITIES = {
         "read_only": False,
     },
     "Comment": {"operations": ["query", "get", "create", "update", "delete"], "read_only": False},
-    "History": {"operations": ["query"], "read_only": True},
+    "LogEntry": {"operations": ["query"], "read_only": True},
     "User": {"operations": ["query", "get"], "read_only": True},
     "Group": {"operations": ["query", "get"], "read_only": True},
     "Blob": {"operations": ["upload", "download"], "read_only": False},
@@ -98,7 +98,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("AddressBook", limit=limit)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "list_addressbooks")
+            return [client.handle_api_error(e, "list_addressbooks")]
 
     # -------------------------------------------------------------------- Contact
 
@@ -118,7 +118,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("Contact", filter=f or None, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_contacts")
+            return [client.handle_api_error(e, "query_contacts")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_contact(contact_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -161,7 +161,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("Calendar", limit=limit)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "list_calendars")
+            return [client.handle_api_error(e, "list_calendars")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def query_calendar_events(
@@ -189,7 +189,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
                 "CalendarEvent", filter=f or None, limit=limit, properties=properties
             )
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_calendar_events")
+            return [client.handle_api_error(e, "query_calendar_events")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_calendar_event(event_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -233,7 +233,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("TaskList", limit=limit)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "list_tasklists")
+            return [client.handle_api_error(e, "list_tasklists")]
 
     # ------------------------------------------------------------------------ Task
 
@@ -256,7 +256,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("Task", filter=f or None, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_tasks")
+            return [client.handle_api_error(e, "query_tasks")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_task(task_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -303,7 +303,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("Note", filter=filter, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_notes")
+            return [client.handle_api_error(e, "query_notes")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_note(note_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -351,7 +351,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("Project3", filter=filter, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_projects")
+            return [client.handle_api_error(e, "query_projects")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_project(project_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -390,23 +390,21 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def query_comments(
-        entity_type_id: int,
+        entity: str,
         entity_id: str,
         limit: int = 50,
         properties: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """List comments attached to a record, filtered by GroupOffice's
-        confirmed `entityTypeId` (int)/`entityId` properties. `entityTypeId`
-        is an internal numeric type ID, not a friendly name like "Contact" -
-        GroupOffice does not document a public name-to-ID lookup table; find
-        it by inspecting the `entityTypeId` field on an existing Comment/
-        LogEntry record for the record type you care about, or via your
-        instance's /api/doc.php."""
-        f = {"entityTypeId": entity_type_id, "entityId": entity_id}
+        """List comments attached to a record, e.g. entity='Contact',
+        entity_id='42'. Filtered by GroupOffice's confirmed `entity`
+        (friendly name, not the stored `entityTypeId` int - verified live:
+        querying by `entityTypeId` is rejected as an unsupported filter,
+        while `entity` works) and `entityId` properties."""
+        f = {"entity": entity, "entityId": entity_id}
         try:
             return client.query_and_get("Comment", filter=f, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_comments")
+            return [client.handle_api_error(e, "query_comments")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_comment(comment_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -445,22 +443,22 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def query_history(
-        entity_type_id: int,
+        entity: str,
         entity_id: str,
         limit: int = 50,
         properties: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """List audit-log entries for a record. GroupOffice's history/audit
-        entity is actually named `LogEntry` (not "History"), filtered by its
-        confirmed `entityTypeId` (int)/`entityId` properties - see
-        `query_comments` for how to find `entity_type_id`. Read-only and
-        generated automatically by GroupOffice; there are no
-        create/update/delete tools for it."""
-        f = {"entityTypeId": entity_type_id, "entityId": entity_id}
+        """List audit-log entries for a record, e.g. entity='Contact',
+        entity_id='42'. GroupOffice's history/audit entity is actually named
+        `LogEntry` (not "History"), filtered by its confirmed `entity`
+        (friendly name)/`entityId` properties - see `query_comments` for
+        details. Read-only and generated automatically by GroupOffice; there
+        are no create/update/delete tools for it."""
+        f = {"entity": entity, "entityId": entity_id}
         try:
             return client.query_and_get("LogEntry", filter=f, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_history")
+            return [client.handle_api_error(e, "query_history")]
 
     # ------------------------------------------------------------------------ User
 
@@ -476,7 +474,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("User", filter=filter, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_users")
+            return [client.handle_api_error(e, "query_users")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_user(user_id: str, properties: list[str] | None = None) -> dict[str, Any]:
@@ -498,7 +496,7 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
         try:
             return client.query_and_get("Group", filter=filter, limit=limit, properties=properties)
         except GroupOfficeError as e:
-            return client.handle_api_error(e, "query_groups")
+            return [client.handle_api_error(e, "query_groups")]
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_group(group_id: str, properties: list[str] | None = None) -> dict[str, Any]:
