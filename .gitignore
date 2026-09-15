@@ -56,3 +56,4 @@ debian/debhelper-build-stamp
 debian/files
 debian/*.substvars
 debian/*.debhelper.log
+group-office.svg
