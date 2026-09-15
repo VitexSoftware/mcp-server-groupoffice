@@ -1,5 +1,7 @@
 # GroupOffice MCP Server
 
+<img src="debian/mcp-server-groupoffice.svg" alt="mcp-server-groupoffice icon" width="96" height="96" />
+
 An [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for
 [GroupOffice](https://www.group-office.com/) groupware, built on
 [FastMCP](https://github.com/Vitexus/python3-fastmcp). It talks to GroupOffice's

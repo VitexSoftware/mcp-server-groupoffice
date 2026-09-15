@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="console-application">
+  <id>cz.vitexsoftware.mcp-server-groupoffice</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>mcp-server-groupoffice</name>
+  <summary>MCP server for GroupOffice groupware integration</summary>
+  <description>
+    <p>
+      An MCP (Model Context Protocol) server for GroupOffice groupware,
+      built on fastmcp. It talks to GroupOffice's JMAP-style batch/RPC API
+      and exposes Contacts, Calendars, Tasks, Notes, Projects, Comments,
+      History, Users, Groups, and file attachments as MCP tools.
+    </p>
+    <p>
+      Defaults to read-only: mutating tools (create/update/delete/upload)
+      are rejected before any API call unless GROUPOFFICE_READONLY=false
+      is set. Also provides MCP resources for browsable lists and prompts
+      encoding a read-before-write workflow.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/VitexSoftware/mcp-server-groupoffice</url>
+  <icon type="stock">mcp-server-groupoffice</icon>
+  <provides>
+    <binary>groupoffice-mcp-server</binary>
+  </provides>
+</component>

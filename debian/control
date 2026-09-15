@@ -1,0 +1,53 @@
+Source: mcp-server-groupoffice
+Section: python
+Priority: optional
+Maintainer: Vítězslav Dvořák <info@vitexsoftware.cz>
+Build-Depends:
+ appstream,
+ debhelper-compat (= 13),
+ dh-python,
+ pybuild-plugin-pyproject,
+ python3-all,
+ python3-build,
+ python3-fastmcp,
+ python3-httpx,
+ python3-pydantic,
+ python3-setuptools,
+ python3-wheel,
+Standards-Version: 4.7.0
+Homepage: https://github.com/VitexSoftware/mcp-server-groupoffice
+Vcs-Git: https://github.com/VitexSoftware/mcp-server-groupoffice.git
+Vcs-Browser: https://github.com/VitexSoftware/mcp-server-groupoffice
+Rules-Requires-Root: no
+
+Package: mcp-server-groupoffice
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ python3-fastmcp,
+ python3-httpx,
+ python3-pydantic,
+ ${misc:Depends},
+ ${python3:Depends},
+Description: MCP server for GroupOffice groupware integration
+ An MCP (Model Context Protocol) server for GroupOffice groupware, built on
+ fastmcp. It talks to GroupOffice's JMAP-style batch/RPC API and exposes
+ Contacts, Calendars, Tasks, Notes, Projects, Comments, History, Users,
+ Groups, and file attachments as MCP tools.
+ .
+ Defaults to read-only: mutating tools (create/update/delete/upload) are
+ rejected before any API call unless GROUPOFFICE_READONLY=false is set.
+ Also provides MCP resources for browsable lists and prompts encoding a
+ read-before-write workflow (daily briefing, contact lookup, conflict-
+ checked scheduling).
+
+Package: mcprack-mcp-server-groupoffice
+Architecture: all
+Depends:
+ ${misc:Depends},
+ mcprack (>= 1.5.1),
+ mcp-server-groupoffice (= ${binary:Version}),
+Description: Registers GroupOffice MCP server into mcprack catalog
+ Companion package for mcp-server-groupoffice. Installing it registers
+ the groupoffice-mcp-server binary as an available MCP server in the
+ local mcprack instance; removing it unregisters it again.

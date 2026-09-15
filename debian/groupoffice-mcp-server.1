@@ -1,0 +1,74 @@
+.TH GROUPOFFICE-MCP-SERVER 1 "September 2026" "mcp-server-groupoffice" "User Commands"
+.SH NAME
+groupoffice-mcp-server \- MCP server for GroupOffice groupware integration
+.SH SYNOPSIS
+.B groupoffice-mcp-server
+.SH DESCRIPTION
+.B groupoffice-mcp-server
+is a Model Context Protocol (MCP) server for
+.UR https://www.group-office.com/
+GroupOffice
+.UE
+groupware, talking to its JMAP-style batch/RPC API.
+It communicates over stdio using the MCP protocol and is intended to be
+launched by an MCP client (e.g. Claude Code, Claude Desktop, mcprack, or
+any other MCP-compatible agent runtime), not run interactively.
+.PP
+It is built on
+.BR fastmcp .
+.SH TOOL CATEGORIES
+.TP
+.B Contacts & Address Books
+Search, read, create, update, delete.
+.TP
+.B Calendars & Events
+Search, read, create, update, delete.
+.TP
+.B Tasks & Task Lists
+Search, read, create, update, delete.
+.TP
+.B Notes
+Search, read, create, update, delete.
+.TP
+.B Projects
+(Projects v3 module, optional) Search, read, create, update, delete.
+.TP
+.B Comments
+Search, read, create, update, delete.
+.TP
+.B History
+Read-only audit log search.
+.TP
+.B Users & Groups
+Read-only; administration is out of scope by design.
+.TP
+.B File attachments
+Upload/download as GroupOffice blobs.
+.SH ENVIRONMENT
+.TP
+.B GROUPOFFICE_URL
+Base URL of the GroupOffice instance (required).
+.TP
+.B GROUPOFFICE_API_TOKEN
+API bearer token, generated under System Settings -> API Keys (required).
+.TP
+.B GROUPOFFICE_VERIFY_SSL
+Verify TLS certificates (default: true).
+.TP
+.B GROUPOFFICE_TIMEOUT
+Request timeout in seconds (default: 30).
+.TP
+.B GROUPOFFICE_MAX_RETRIES
+Connection-level retries for transient network errors (default: 3).
+.TP
+.B GROUPOFFICE_DEBUG
+Enable debug logging (default: false).
+.TP
+.B GROUPOFFICE_READONLY
+.B true
+(default) rejects all mutating tools (create/update/delete/upload) before
+any API call;
+.B false
+allows writes.
+.SH AUTHOR
+Vítězslav Dvořák <info@vitexsoftware.cz>

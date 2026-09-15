@@ -47,3 +47,12 @@ Thumbs.db
 # GroupOffice MCP Server specific
 *.log
 config.json
+
+# Debian packaging build artifacts
+debian/.debhelper/
+debian/mcp-server-groupoffice/
+debian/mcprack-mcp-server-groupoffice/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*.debhelper.log
