@@ -18,10 +18,15 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "mcp-server-groupoffice.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: mcp-server-groupoffice
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           {{- if .Values.command.enabled }}
           command:
             {{- toYaml .Values.command.value | nindent 12 }}

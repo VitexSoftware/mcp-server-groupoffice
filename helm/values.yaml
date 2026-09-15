@@ -12,9 +12,25 @@ fullnameOverride: ""
 
 serviceAccount:
   create: true
-  automount: true
+  # This server never talks to the Kubernetes API, so it has no need for a
+  # mounted token - leave this false unless something else requires it.
+  automount: false
   annotations: {}
   name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
 
 # The server speaks MCP over stdio, not HTTP - there is no Service/port to
 # expose. This chart keeps a pod alive so an MCP client can reach it via
@@ -27,8 +43,13 @@ environment:
   GROUPOFFICE_MAX_RETRIES: "3"
   GROUPOFFICE_DEBUG: "false"
 
+# No default on purpose: the chart refuses to install (see
+# templates/secret.yaml) unless this is overridden with a real token, e.g.
+# --set secrets.GROUPOFFICE_API_TOKEN=... or a values file kept out of
+# version control - a placeholder default here would deploy silently with a
+# credential that looks valid but isn't.
 secrets:
-  GROUPOFFICE_API_TOKEN: "changeme"
+  GROUPOFFICE_API_TOKEN: ""
 
 command:
   enabled: true
