@@ -2,6 +2,11 @@
 
 <img src="debian/mcp-server-groupoffice.svg" alt="mcp-server-groupoffice icon" width="96" height="96" />
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/groupoffice-mcp-server.svg)](https://pypi.org/project/groupoffice-mcp-server/)
+![Packaging: deb](https://img.shields.io/badge/packaging-.deb-red?logo=debian&logoColor=white)
+
 An [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for
 [GroupOffice](https://www.group-office.com/) groupware, built on
 [FastMCP](https://github.com/Vitexus/python3-fastmcp). It talks to GroupOffice's
@@ -33,13 +38,21 @@ rejected before any API call unless you explicitly set `GROUPOFFICE_READONLY=fal
 
 ```bash
 pip install -e .
-# or, once published:
+# or, from PyPI:
 pip install groupoffice-mcp-server
 ```
+
+Published on PyPI at
+[pypi.org/project/groupoffice-mcp-server](https://pypi.org/project/groupoffice-mcp-server/).
 
 This project targets the `fastmcp` build packaged at
 [github.com/Vitexus/python3-fastmcp](https://github.com/Vitexus/python3-fastmcp)
 (Debian `python3-fastmcp`). A generic PyPI `fastmcp` install may differ.
+
+A Debian package (`mcp-server-groupoffice`, with a companion
+`mcprack-mcp-server-groupoffice` package that registers it into a local
+[mcprack](https://github.com/VitexSoftware/mcprack) MCP catalog) is also
+published with each [GitHub release](https://github.com/VitexSoftware/mcp-server-groupoffice/releases).
 
 ## Configuration
 
@@ -92,6 +105,43 @@ Or add it to an MCP client (e.g. Claude Desktop) config:
   }
 }
 ```
+
+## Container image
+
+A container image is published to Docker Hub at
+[`docker.io/vitexsoftware/mcp-server-groupoffice`](https://hub.docker.com/r/vitexsoftware/mcp-server-groupoffice),
+built from the repo's `Containerfile` (a two-stage `uv`-based Python build on
+`python:3.12-slim`). Run it directly - it speaks MCP over stdio, so it must
+be launched by an MCP client, not run detached:
+
+```bash
+podman run --rm -i \
+  -e GROUPOFFICE_URL=https://groupoffice.example.com \
+  -e GROUPOFFICE_API_TOKEN=your-api-token \
+  docker.io/vitexsoftware/mcp-server-groupoffice:0.2.0
+```
+
+(or `docker run` - the image works with either).
+
+## Kubernetes / Helm
+
+A Helm chart lives in [`helm/`](helm/). Since the server is stdio-only (no
+HTTP port to expose as a Service), the chart deploys a single always-on pod
+that an MCP client reaches via `kubectl exec`, rather than a Service +
+Ingress:
+
+```bash
+helm upgrade --install groupoffice-mcp helm/ \
+  --set environment.GROUPOFFICE_URL=https://groupoffice.example.com \
+  --set secrets.GROUPOFFICE_API_TOKEN=your-api-token
+```
+
+Never put a real token in `values.yaml` or `--set` on the command line for
+anything beyond ad-hoc testing - pass it via `-f` with a values file kept out
+of version control, or wire the chart's Secret up to your cluster's secret
+manager (sealed-secrets, External Secrets, Vault, etc.). See
+`helm/templates/NOTES.txt` (printed after install) for how to reach the pod
+once it's running.
 
 ## Tools
 
@@ -166,8 +216,9 @@ high-privilege and out of scope for this server.
   no OAuth2 flow (GroupOffice's own "OAuth2 Client" feature is for GroupOffice
   acting as a client to other services, not for authenticating third parties
   against GroupOffice itself).
-- Debian packaging (matching `multiflexi-mcp-server`'s `debian/` layout) is a
-  possible follow-up, not included in this initial version.
+- The Kubernetes Helm chart runs the server as a single always-on pod reached
+  via `kubectl exec`, since MCP-over-stdio has no port to put behind a
+  Service - it is not a horizontally-scaled deployment model.
 
 ## Development
 

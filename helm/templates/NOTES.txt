@@ -1,0 +1,15 @@
+1. Check deployment status:
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+2. The server speaks MCP over stdio, not HTTP - there is no Service to reach.
+   Point your MCP client at this pod via `kubectl exec`, e.g. for a client
+   that accepts a raw command:
+
+   kubectl exec -i -n {{ .Release.Namespace }} deploy/{{ include "mcp-server-groupoffice.fullname" . }} -- groupoffice-mcp-server
+
+3. Inspect the environment resolved by this chart:
+   kubectl describe configmap {{ include "mcp-server-groupoffice.fullname" . }} -n {{ .Release.Namespace }}
+
+4. GROUPOFFICE_API_TOKEN is stored in the {{ include "mcp-server-groupoffice.fullname" . }}
+   Secret - override it with --set secrets.GROUPOFFICE_API_TOKEN=... or your
+   own values file, never commit a real token to values.yaml.

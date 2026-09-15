@@ -45,3 +45,18 @@ export GROUPOFFICE_READONLY=false
 `tests/conftest.py` builds a `GroupOfficeConfig` directly with a fixture URL/
 token and injects a mocked `GroupOfficeClient`, so `pytest tests/` runs fully
 offline.
+
+**Container image** (see the README's "Container image" section): pass the
+same variables via `-e`:
+
+```bash
+podman run --rm -i \
+  -e GROUPOFFICE_URL=https://go-test.example.com \
+  -e GROUPOFFICE_API_TOKEN=xxxxxxxx \
+  docker.io/vitexsoftware/mcp-server-groupoffice:0.2.0
+```
+
+**Kubernetes/Helm** (see [`helm/values.yaml`](../helm/values.yaml)): the
+non-secret variables above go under `environment:`, and
+`GROUPOFFICE_API_TOKEN` goes under `secrets:` - the chart wires the first
+into a ConfigMap and the second into a Secret, both mounted via `envFrom`.

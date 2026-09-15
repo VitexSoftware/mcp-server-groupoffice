@@ -1,0 +1,50 @@
+replicaCount: 1
+
+image:
+  repository: docker.io/vitexsoftware/mcp-server-groupoffice
+  tag: "0.2.0"
+  pullPolicy: IfNotPresent
+
+podLabels: {}
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+# The server speaks MCP over stdio, not HTTP - there is no Service/port to
+# expose. This chart keeps a pod alive so an MCP client can reach it via
+# `kubectl exec -i` (see templates/NOTES.txt).
+environment:
+  GROUPOFFICE_URL: "https://groupoffice.example.com"
+  GROUPOFFICE_READONLY: "true"
+  GROUPOFFICE_VERIFY_SSL: "true"
+  GROUPOFFICE_TIMEOUT: "30"
+  GROUPOFFICE_MAX_RETRIES: "3"
+  GROUPOFFICE_DEBUG: "false"
+
+secrets:
+  GROUPOFFICE_API_TOKEN: "changeme"
+
+command:
+  enabled: true
+  value:
+    - /bin/sh
+    - -c
+    - while true; do sleep 3600; done
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

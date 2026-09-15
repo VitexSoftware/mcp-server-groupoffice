@@ -1,0 +1,15 @@
+apiVersion: v2
+name: mcp-server-groupoffice
+description: Helm chart for the GroupOffice MCP Server
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+home: https://github.com/VitexSoftware/mcp-server-groupoffice
+icon: https://raw.githubusercontent.com/VitexSoftware/mcp-server-groupoffice/main/debian/mcp-server-groupoffice.svg
+sources:
+  - https://github.com/VitexSoftware/mcp-server-groupoffice
+keywords:
+  - mcp
+  - model-context-protocol
+  - groupoffice
+  - groupware
