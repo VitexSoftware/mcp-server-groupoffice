@@ -1,3 +1,12 @@
+mcp-server-groupoffice (0.2.2) unstable; urgency=medium
+
+  * Accept HTTP 201 from GroupOffice blob upload endpoint.
+  * Add list_notebooks tool (noteBookId required for create_note).
+  * Extend live_capability_scenario with --allow-writes create/update/delete cycle.
+  * Verified live against https://go.vitexsoftware.com.
+
+ -- vitex <info@vitexsoftware.cz>  Mon, 21 Sep 2026 11:52:34 +0200
+
 mcp-server-groupoffice (0.2.1) unstable; urgency=medium
 
   * Fail-closed GROUPOFFICE_READONLY (empty/unset stays read-only).
