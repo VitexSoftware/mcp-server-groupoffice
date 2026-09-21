@@ -161,11 +161,22 @@ class GroupOfficeClient:
             resp = self._http.post(self.config.upload_endpoint, content=data, headers=headers)
         except httpx.HTTPError as e:
             raise GroupOfficeError(f"Blob upload failed: {e}") from e
-        if resp.status_code != 200:
+        # GroupOffice returns 201 Created on successful upload (verified live on
+        # go.vitexsoftware.com); accept any 2xx with a blobId payload.
+        if resp.status_code < 200 or resp.status_code >= 300:
             raise GroupOfficeError(
                 f"Blob upload returned HTTP {resp.status_code}", status=resp.status_code
             )
-        return resp.json()["blobId"]
+        try:
+            payload = resp.json()
+        except ValueError as e:
+            raise GroupOfficeError(f"Blob upload returned non-JSON response: {e}") from e
+        blob_id = payload.get("blobId")
+        if not blob_id:
+            raise GroupOfficeError(
+                "Blob upload response missing blobId", status=resp.status_code, details=payload
+            )
+        return blob_id
 
     def download_blob(self, blob_id: str) -> bytes:
         try:

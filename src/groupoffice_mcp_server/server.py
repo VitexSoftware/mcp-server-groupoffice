@@ -55,6 +55,7 @@ SUPPORTED_ENTITIES = {
     },
     "TaskList": {"operations": ["query", "get"], "read_only": True},
     "Task": {"operations": ["query", "get", "create", "update", "delete"], "read_only": False},
+    "NoteBook": {"operations": ["query", "get"], "read_only": True},
     "Note": {"operations": ["query", "get", "create", "update", "delete"], "read_only": False},
     "Project3": {
         "operations": ["query", "get", "create", "update", "delete"],
@@ -294,6 +295,14 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
     # ------------------------------------------------------------------------ Note
 
     @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
+    def list_notebooks(limit: int = 50) -> list[dict[str, Any]]:
+        """List notebooks (NoteBook entities). Required `noteBookId` for create_note."""
+        try:
+            return client.query_and_get("NoteBook", limit=limit)
+        except GroupOfficeError as e:
+            return [client.handle_api_error(e, "list_notebooks")]
+
+    @mcp.tool(annotations=READ_ONLY_ANNOTATIONS)
     def query_notes(
         filter: dict[str, Any] | None = None,
         limit: int = 50,
@@ -315,7 +324,8 @@ def create_server(config: GroupOfficeConfig, client: GroupOfficeClient | None = 
 
     @mcp.tool(annotations=CREATE_ANNOTATIONS)
     def create_note(data: dict[str, Any]) -> dict[str, Any]:
-        """Create a new Note. `data` follows GroupOffice's Note/set create schema."""
+        """Create a new Note. `data` must include `noteBookId` (see list_notebooks)
+        plus fields like `name` / `content`."""
         try:
             return client.set("Note", create={"new": data})
         except GroupOfficeError as e:

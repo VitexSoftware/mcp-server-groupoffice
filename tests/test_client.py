@@ -145,6 +145,14 @@ class TestBlobs:
         assert captured["headers"]["Content-Type"] == "text/plain"
         assert captured["content"] == b"hello"
 
+    def test_upload_blob_accepts_http_201(self):
+        # Live GroupOffice (go.vitexsoftware.com) returns 201 Created.
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(201, json={"blobId": "blob-201"})
+
+        client = make_client(handler)
+        assert client.upload_blob(b"hello", "hello.txt") == "blob-201"
+
     def test_download_blob_base64_shape(self):
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, content=b"hello")

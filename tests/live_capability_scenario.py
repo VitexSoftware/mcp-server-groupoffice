@@ -3,13 +3,17 @@
 
 Exercises every registered MCP tool against a real GroupOffice instance:
 read tools must return usable data; mutating tools must be blocked when
-GROUPOFFICE_READONLY is enabled (the default).
+GROUPOFFICE_READONLY is enabled (the default). With ``--allow-writes``,
+create/update/delete cycles run against the live instance.
 
 Usage:
-  export GROUPOFFICE_URL=https://groupoffice.spoje.net
+  export GROUPOFFICE_URL=https://go.vitexsoftware.com
   export GROUPOFFICE_API_TOKEN=...
   export GROUPOFFICE_READONLY=true
   python tests/live_capability_scenario.py --json-out /tmp/go-live.json
+
+  # Non-production only — creates and mutates records:
+  python tests/live_capability_scenario.py --allow-writes --json-out /tmp/go-write.json
 
 Exit code is 0 only when every non-skipped check passes.
 """
@@ -18,11 +22,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import os
 import sys
 import traceback
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -88,10 +94,37 @@ def _usable(data: Any) -> tuple[bool, str]:
             return False, str(data[0].get("message") or data[0])[:300]
         return True, f"list len={len(data)}" + (" (empty ok)" if not data else "")
     if isinstance(data, dict):
+        # JMAP get shape: require list non-empty or explicit notFound empty with list
+        if "list" in data and "notFound" in data:
+            lst = data.get("list") or []
+            nf = data.get("notFound") or []
+            if lst:
+                return True, f"jmap get list={len(lst)}"
+            if nf:
+                return False, f"jmap notFound={nf}"
+            return True, "jmap get empty list"
+        # set() shape
+        if "notCreated" in data and data.get("notCreated"):
+            return False, f"notCreated={data['notCreated']}"
+        if "notUpdated" in data and data.get("notUpdated"):
+            return False, f"notUpdated={data['notUpdated']}"
+        if "notDestroyed" in data and data.get("notDestroyed"):
+            return False, f"notDestroyed={data['notDestroyed']}"
         return True, f"keys={list(data.keys())[:8]}"
     if isinstance(data, str):
         return (bool(data.strip()), "empty string" if not data.strip() else "ok string")
     return True, f"type={type(data).__name__}"
+
+
+def _created_id(data: Any) -> Optional[str]:
+    if not isinstance(data, dict):
+        return None
+    created = data.get("created") or {}
+    if isinstance(created, dict) and created:
+        first = next(iter(created.values()))
+        if isinstance(first, dict) and first.get("id") is not None:
+            return str(first["id"])
+    return None
 
 
 async def _call(server: Any, name: str, args: Optional[dict] = None) -> Any:
@@ -126,26 +159,27 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
         )
     )
 
-    # Seed ids from list tools
     contact_id = None
     event_id = None
     task_id = None
     note_id = None
+    addressbook_id = None
+    calendar_id = None
+    tasklist_id = None
+    notebook_id = None
 
     listish = [
         ("list_addressbooks", {}),
         ("list_calendars", {}),
         ("list_tasklists", {}),
+        ("list_notebooks", {}),
         ("query_contacts", {"limit": 5}),
         ("query_calendar_events", {"limit": 5}),
         ("query_tasks", {"limit": 5}),
         ("query_notes", {"limit": 5}),
-        ("query_comments", {"limit": 5}),
-        ("query_history", {"limit": 5}),
         ("query_users", {"limit": 5}),
         ("query_groups", {"limit": 5}),
     ]
-    # projects may be optional module
     optional_list = [("query_projects", {"limit": 5})]
 
     for name, args in listish:
@@ -153,6 +187,14 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
             data = await _call(server, name, args)
             ok, detail = _usable(data)
             report.add(CheckResult(name=name, kind="tool", ok=ok, detail=detail, sample=str(data)[:400]))
+            if name == "list_addressbooks" and isinstance(data, list) and data:
+                addressbook_id = data[0].get("id")
+            if name == "list_calendars" and isinstance(data, list) and data:
+                calendar_id = data[0].get("id")
+            if name == "list_tasklists" and isinstance(data, list) and data:
+                tasklist_id = data[0].get("id")
+            if name == "list_notebooks" and isinstance(data, list) and data:
+                notebook_id = data[0].get("id")
             if name == "query_contacts" and isinstance(data, list) and data and isinstance(data[0], dict):
                 contact_id = data[0].get("id")
             if name == "query_calendar_events" and isinstance(data, list) and data and isinstance(data[0], dict):
@@ -176,7 +218,6 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
         try:
             data = await _call(server, name, args)
             ok, detail = _usable(data)
-            # Module may be disabled — treat "not found"/permission as skip
             if not ok and any(x in detail.lower() for x in ("not found", "forbidden", "permission", "unknown")):
                 report.add(CheckResult(name=name, kind="tool", ok=True, detail=detail, skipped=True))
             else:
@@ -198,11 +239,27 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
                     CheckResult(name=name, kind="tool", ok=False, detail=f"{type(exc).__name__}: {exc}")
                 )
 
+    # Comments / history require entity + entity_id (verified live: filter by
+    # friendly entity name works; bare limit-only calls fail validation).
+    scoped = [
+        ("query_comments", {"entity": "Contact", "entity_id": str(contact_id or "1"), "limit": 5}),
+        ("query_history", {"entity": "Contact", "entity_id": str(contact_id or "1"), "limit": 5}),
+    ]
+    for name, args in scoped:
+        try:
+            data = await _call(server, name, args)
+            ok, detail = _usable(data)
+            report.add(CheckResult(name=name, kind="tool", ok=ok, detail=detail, sample=str(data)[:400]))
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name=name, kind="tool", ok=False, detail=f"{type(exc).__name__}: {exc}")
+            )
+
     id_gets = [
-        ("get_contact", {"contact_id": contact_id}, contact_id),
-        ("get_calendar_event", {"event_id": event_id}, event_id),
-        ("get_task", {"task_id": task_id}, task_id),
-        ("get_note", {"note_id": note_id}, note_id),
+        ("get_contact", {"contact_id": str(contact_id)}, contact_id),
+        ("get_calendar_event", {"event_id": str(event_id)}, event_id),
+        ("get_task", {"task_id": str(task_id)}, task_id),
+        ("get_note", {"note_id": str(note_id)}, note_id),
     ]
     for name, args, needed in id_gets:
         if not needed:
@@ -223,7 +280,6 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
         except Exception as exc:  # noqa: BLE001
             report.add(CheckResult(name=name, kind="tool", ok=False, detail=f"{type(exc).__name__}: {exc}"))
 
-    # Cover remaining RO tools not explicitly probed
     covered = {r.name for r in report.results if r.kind == "tool"}
     for t in tools:
         if not _tool_is_readonly(t) or t.name in covered:
@@ -247,7 +303,6 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
         for name, args in sample_writes:
             try:
                 data = await _call(server, name, args)
-                # Middleware should raise before returning success
                 refused = isinstance(data, dict) and (
                     data.get("error") or "read-only" in str(data).lower()
                 )
@@ -282,8 +337,351 @@ async def run_scenario(*, read_only: bool) -> ScenarioReport:
                     detail="write tool registered (guard-sampled separately)",
                 )
             )
+    else:
+        await _run_write_cycle(
+            server,
+            report,
+            addressbook_id=addressbook_id,
+            calendar_id=calendar_id,
+            tasklist_id=tasklist_id,
+            notebook_id=notebook_id,
+        )
 
     return report
+
+
+async def _run_write_cycle(
+    server: Any,
+    report: ScenarioReport,
+    *,
+    addressbook_id: Any,
+    calendar_id: Any,
+    tasklist_id: Any,
+    notebook_id: Any,
+) -> None:
+    """Create / update / delete across entities on a non-production instance."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    created_contact = None
+    created_task = None
+    created_note = None
+    created_event = None
+    created_comment = None
+    blob_id = None
+
+    # Ensure calendar exists (fresh installs may have none)
+    if not calendar_id:
+        try:
+            # No create_calendar tool — use raw client via create path not available;
+            # fall back: skip events if we cannot discover a calendar.
+            report.add(
+                CheckResult(
+                    name="write:ensure_calendar",
+                    kind="write",
+                    ok=True,
+                    detail="no calendar; skipping event writes",
+                    skipped=True,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(
+                    name="write:ensure_calendar",
+                    kind="write",
+                    ok=False,
+                    detail=str(exc)[:300],
+                )
+            )
+
+    # Contact create → update → get → comment → history
+    try:
+        data = await _call(
+            server,
+            "create_contact",
+            {
+                "data": {
+                    "addressBookId": str(addressbook_id or "1"),
+                    "firstName": "MCP",
+                    "lastName": f"Write-{stamp}",
+                    "emailAddresses": [{"type": "work", "email": f"mcp-{stamp}@example.com"}],
+                }
+            },
+        )
+        ok, detail = _usable(data)
+        created_contact = _created_id(data)
+        report.add(
+            CheckResult(
+                name="write:create_contact",
+                kind="write",
+                ok=ok and bool(created_contact),
+                detail=detail if ok else detail,
+                sample=str(data)[:400],
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        report.add(
+            CheckResult(name="write:create_contact", kind="write", ok=False, detail=str(exc)[:300])
+        )
+
+    if created_contact:
+        try:
+            data = await _call(
+                server,
+                "update_contact",
+                {"contact_id": created_contact, "data": {"jobTitle": "MCP Live Tester"}},
+            )
+            ok, detail = _usable(data)
+            report.add(CheckResult(name="write:update_contact", kind="write", ok=ok, detail=detail))
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:update_contact", kind="write", ok=False, detail=str(exc)[:300])
+            )
+
+        try:
+            data = await _call(server, "get_contact", {"contact_id": created_contact})
+            ok, detail = _usable(data)
+            report.add(CheckResult(name="write:get_contact", kind="write", ok=ok, detail=detail))
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:get_contact", kind="write", ok=False, detail=str(exc)[:300])
+            )
+
+        try:
+            data = await _call(
+                server,
+                "create_comment",
+                {
+                    "data": {
+                        "entity": "Contact",
+                        "entityId": created_contact,
+                        "text": f"MCP live comment {stamp}",
+                    }
+                },
+            )
+            ok, detail = _usable(data)
+            created_comment = _created_id(data)
+            report.add(
+                CheckResult(
+                    name="write:create_comment",
+                    kind="write",
+                    ok=ok and bool(created_comment),
+                    detail=detail,
+                    sample=str(data)[:400],
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:create_comment", kind="write", ok=False, detail=str(exc)[:300])
+            )
+
+        try:
+            data = await _call(
+                server,
+                "query_history",
+                {"entity": "Contact", "entity_id": created_contact, "limit": 5},
+            )
+            ok, detail = _usable(data)
+            report.add(CheckResult(name="write:query_history", kind="write", ok=ok, detail=detail))
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:query_history", kind="write", ok=False, detail=str(exc)[:300])
+            )
+
+    # Task
+    if tasklist_id:
+        try:
+            data = await _call(
+                server,
+                "create_task",
+                {
+                    "data": {
+                        "tasklistId": str(tasklist_id),
+                        "title": f"MCP task {stamp}",
+                        "percentComplete": 0,
+                    }
+                },
+            )
+            ok, detail = _usable(data)
+            created_task = _created_id(data)
+            report.add(
+                CheckResult(
+                    name="write:create_task",
+                    kind="write",
+                    ok=ok and bool(created_task),
+                    detail=detail,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:create_task", kind="write", ok=False, detail=str(exc)[:300])
+            )
+        if created_task:
+            try:
+                data = await _call(
+                    server,
+                    "update_task",
+                    {"task_id": created_task, "data": {"percentComplete": 50}},
+                )
+                ok, detail = _usable(data)
+                report.add(CheckResult(name="write:update_task", kind="write", ok=ok, detail=detail))
+            except Exception as exc:  # noqa: BLE001
+                report.add(
+                    CheckResult(name="write:update_task", kind="write", ok=False, detail=str(exc)[:300])
+                )
+    else:
+        report.add(
+            CheckResult(
+                name="write:create_task",
+                kind="write",
+                ok=True,
+                detail="no tasklist",
+                skipped=True,
+            )
+        )
+
+    # Note
+    if notebook_id:
+        try:
+            data = await _call(
+                server,
+                "create_note",
+                {
+                    "data": {
+                        "noteBookId": str(notebook_id),
+                        "name": f"MCP note {stamp}",
+                        "content": "live write cycle",
+                    }
+                },
+            )
+            ok, detail = _usable(data)
+            created_note = _created_id(data)
+            report.add(
+                CheckResult(
+                    name="write:create_note",
+                    kind="write",
+                    ok=ok and bool(created_note),
+                    detail=detail,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:create_note", kind="write", ok=False, detail=str(exc)[:300])
+            )
+    else:
+        report.add(
+            CheckResult(
+                name="write:create_note",
+                kind="write",
+                ok=True,
+                detail="no notebook",
+                skipped=True,
+            )
+        )
+
+    # Calendar event
+    if calendar_id:
+        start = (datetime.now(timezone.utc) + timedelta(days=1)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        try:
+            data = await _call(
+                server,
+                "create_calendar_event",
+                {
+                    "data": {
+                        "calendarId": str(calendar_id),
+                        "title": f"MCP event {stamp}",
+                        "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "duration": "PT1H",
+                    }
+                },
+            )
+            ok, detail = _usable(data)
+            created_event = _created_id(data)
+            report.add(
+                CheckResult(
+                    name="write:create_calendar_event",
+                    kind="write",
+                    ok=ok and bool(created_event),
+                    detail=detail,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(
+                    name="write:create_calendar_event",
+                    kind="write",
+                    ok=False,
+                    detail=str(exc)[:300],
+                )
+            )
+    else:
+        report.add(
+            CheckResult(
+                name="write:create_calendar_event",
+                kind="write",
+                ok=True,
+                detail="no calendar",
+                skipped=True,
+            )
+        )
+
+    # Blob upload + download
+    try:
+        payload = base64.b64encode(f"mcp-live-{stamp}".encode()).decode()
+        data = await _call(
+            server,
+            "upload_file",
+            {
+                "filename": f"mcp-live-{stamp}.txt",
+                "content_base64": payload,
+                "content_type": "text/plain",
+            },
+        )
+        ok, detail = _usable(data)
+        if isinstance(data, dict):
+            blob_id = data.get("blob_id") or data.get("blobId")
+        report.add(
+            CheckResult(
+                name="write:upload_file",
+                kind="write",
+                ok=ok and bool(blob_id),
+                detail=detail if blob_id else f"no blob id in {data!r}"[:300],
+                sample=str(data)[:400],
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        report.add(
+            CheckResult(name="write:upload_file", kind="write", ok=False, detail=str(exc)[:300])
+        )
+
+    if blob_id:
+        try:
+            data = await _call(server, "download_file", {"blob_id": str(blob_id)})
+            ok, detail = _usable(data)
+            report.add(CheckResult(name="write:download_file", kind="write", ok=ok, detail=detail))
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name="write:download_file", kind="write", ok=False, detail=str(exc)[:300])
+            )
+
+    # Cleanup deletes (leave a trail is fine; still exercise delete_*)
+    for name, args, cond in [
+        ("delete_comment", {"comment_id": created_comment}, created_comment),
+        ("delete_note", {"note_id": created_note}, created_note),
+        ("delete_task", {"task_id": created_task}, created_task),
+        ("delete_calendar_event", {"event_id": created_event}, created_event),
+        ("delete_contact", {"contact_id": created_contact}, created_contact),
+    ]:
+        if not cond:
+            continue
+        try:
+            data = await _call(server, name, args)
+            ok, detail = _usable(data)
+            report.add(CheckResult(name=f"write:{name}", kind="write", ok=ok, detail=detail))
+        except Exception as exc:  # noqa: BLE001
+            report.add(
+                CheckResult(name=f"write:{name}", kind="write", ok=False, detail=str(exc)[:300])
+            )
 
 
 def main() -> int:
@@ -292,14 +690,14 @@ def main() -> int:
     parser.add_argument(
         "--allow-writes",
         action="store_true",
-        help="Set GROUPOFFICE_READONLY=false (skips write guards)",
+        help="Set GROUPOFFICE_READONLY=false and exercise create/update/delete",
     )
     args = parser.parse_args()
 
     if not os.getenv("GROUPOFFICE_URL") or not os.getenv("GROUPOFFICE_API_TOKEN"):
         print(
             "Missing GROUPOFFICE_URL / GROUPOFFICE_API_TOKEN. "
-            "Example host: https://groupoffice.spoje.net",
+            "Example host: https://go.vitexsoftware.com",
             file=sys.stderr,
         )
         return 2

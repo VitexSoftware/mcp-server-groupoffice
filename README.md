@@ -158,13 +158,14 @@ the named convenience parameters.
 | CalendarEvent | `query_calendar_events`, `get_calendar_event`, `create_calendar_event`, `update_calendar_event`, `delete_calendar_event` | no `end` property - events use `start` + `duration` (ISO 8601, e.g. `PT1H`) |
 | TaskList | `list_tasklists` | read-only |
 | Task | `query_tasks`, `get_task`, `create_task`, `update_task`, `delete_task` | `tasklist_id` filters by `tasklistId`; completion is `percentComplete` (0-100), not a boolean |
-| Note | `query_notes`, `get_note`, `create_note`, `update_note`, `delete_note` | |
+| NoteBook | `list_notebooks` | read-only; required `noteBookId` for `create_note` |
+| Note | `query_notes`, `get_note`, `create_note`, `update_note`, `delete_note` | `noteBookId` is required on create |
 | Project3 | `query_projects`, `get_project`, `create_project`, `update_project`, `delete_project` | optional module - errors on instances where it isn't installed |
 | Comment | `query_comments`, `get_comment`, `create_comment`, `update_comment`, `delete_comment` | filter by `entity` (friendly name, e.g. "Contact") + `entity_id` |
 | LogEntry (History) | `query_history` | read-only audit log; same `entity`/`entity_id` filter as Comment |
 | User | `query_users`, `get_user` | read-only - user administration is out of scope |
 | Group | `query_groups`, `get_group` | read-only - group administration is out of scope |
-| Blob | `upload_file`, `download_file` | upload returns a `blob_id` to attach via another entity's `data` |
+| Blob | `upload_file`, `download_file` | upload returns a `blob_id` to attach via another entity's `data`; GroupOffice responds with HTTP 201 on success |
 
 `Instance` (multi-tenant administration) is deliberately not exposed - it is
 high-privilege and out of scope for this server.
@@ -238,10 +239,13 @@ Only an explicit ``false`` / ``0`` / ``no`` enables mutating tools.
 ### Live capability scenario
 
 ```bash
-export GROUPOFFICE_URL=https://groupoffice.spoje.net
+export GROUPOFFICE_URL=https://go.vitexsoftware.com
 export GROUPOFFICE_API_TOKEN=your-token
 export GROUPOFFICE_READONLY=true
 python tests/live_capability_scenario.py --json-out /tmp/go-live.json
+
+# Non-production only — create/update/delete cycle:
+python tests/live_capability_scenario.py --allow-writes --json-out /tmp/go-write.json
 ```
 
 ### Manual live smoke test
