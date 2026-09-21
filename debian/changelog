@@ -1,3 +1,10 @@
+mcp-server-groupoffice (0.2.1) unstable; urgency=medium
+
+  * Fail-closed GROUPOFFICE_READONLY (empty/unset stays read-only).
+  * Add tests/live_capability_scenario.py for end-to-end tool checks.
+
+ -- vitex <info@vitexsoftware.cz>  Mon, 21 Sep 2026 11:45:00 +0200
+
 mcp-server-groupoffice (0.2.0) unstable; urgency=medium
 
   * Add Debian packaging, including companion package

@@ -62,3 +62,17 @@ class TestGroupOfficeConfig:
         monkeypatch.delenv("GROUPOFFICE_READONLY", raising=False)
         config = GroupOfficeConfig.from_env()
         assert config.read_only is True
+
+    def test_from_env_read_only_empty_is_fail_closed(self, monkeypatch):
+        monkeypatch.setenv("GROUPOFFICE_URL", "https://go.example.com")
+        monkeypatch.setenv("GROUPOFFICE_API_TOKEN", "tok")
+        monkeypatch.setenv("GROUPOFFICE_READONLY", "")
+        config = GroupOfficeConfig.from_env()
+        assert config.read_only is True
+
+    def test_from_env_read_only_whitespace_is_fail_closed(self, monkeypatch):
+        monkeypatch.setenv("GROUPOFFICE_URL", "https://go.example.com")
+        monkeypatch.setenv("GROUPOFFICE_API_TOKEN", "tok")
+        monkeypatch.setenv("GROUPOFFICE_READONLY", "   ")
+        config = GroupOfficeConfig.from_env()
+        assert config.read_only is True

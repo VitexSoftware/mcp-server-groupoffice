@@ -6,6 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://badge.fury.io/py/groupoffice-mcp-server.svg)](https://pypi.org/project/groupoffice-mcp-server/)
 ![Packaging: deb](https://img.shields.io/badge/packaging-.deb-red?logo=debian&logoColor=white)
+[![wakatime](https://wakatime.com/badge/user/5abba9ca-813e-43ac-9b5f-b1cfdf3dc1c7/project/10f2f38f-511c-4085-ac0d-ae5a15c7b8cc.svg)](https://wakatime.com/badge/user/5abba9ca-813e-43ac-9b5f-b1cfdf3dc1c7/project/10f2f38f-511c-4085-ac0d-ae5a15c7b8cc)
 
 An [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server for
 [GroupOffice](https://www.group-office.com/) groupware, built on
@@ -67,7 +68,7 @@ environment variables directly:
 | `GROUPOFFICE_TIMEOUT` | no | `30` | HTTP request timeout, seconds |
 | `GROUPOFFICE_MAX_RETRIES` | no | `3` | Connection-level retries on transient network errors |
 | `GROUPOFFICE_DEBUG` | no | `false` | Enable debug logging |
-| `GROUPOFFICE_READONLY` | no | `true` | When true, all mutating tools are rejected. Set `false` to allow writes. |
+| `GROUPOFFICE_READONLY` | no | `true` | When true (default), all mutating tools are rejected. Empty/unset stays fail-closed; set `false` to allow writes. |
 
 There is deliberately no default for `GROUPOFFICE_URL`/`GROUPOFFICE_API_TOKEN` -
 a bundled demo/default host would be a security footgun, so the server refuses
@@ -230,6 +231,18 @@ pytest tests/ -v
 Tests run entirely offline against a mocked `GroupOfficeClient` (via
 `httpx.MockTransport` for client-layer tests, and dependency injection for
 tool-layer tests) - no live GroupOffice instance is required.
+
+Empty or unset ``GROUPOFFICE_READONLY`` stays fail-closed (writes blocked).
+Only an explicit ``false`` / ``0`` / ``no`` enables mutating tools.
+
+### Live capability scenario
+
+```bash
+export GROUPOFFICE_URL=https://groupoffice.spoje.net
+export GROUPOFFICE_API_TOKEN=your-token
+export GROUPOFFICE_READONLY=true
+python tests/live_capability_scenario.py --json-out /tmp/go-live.json
+```
 
 ### Manual live smoke test
 

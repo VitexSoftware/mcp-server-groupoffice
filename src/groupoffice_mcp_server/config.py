@@ -3,6 +3,22 @@ import os
 from pydantic import BaseModel, Field, field_validator
 
 
+def _env_flag(name: str, *, default: bool) -> bool:
+    """Parse a boolean env var fail-closed for security-sensitive defaults.
+
+    Unset or blank → ``default``. Only explicit falsey tokens (``0`` / ``false``
+    / ``no``) flip a default-True flag off; only explicit truthy tokens flip a
+    default-False flag on.
+    """
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+        return default
+    val = str(raw).strip().lower()
+    if default:
+        return val not in ("0", "false", "no")
+    return val in ("1", "true", "yes", "on")
+
+
 class GroupOfficeConfig(BaseModel):
     """Configuration for connecting to a GroupOffice instance.
 
@@ -63,11 +79,11 @@ class GroupOfficeConfig(BaseModel):
         return cls(
             url=url,
             api_token=token,
-            verify_ssl=os.getenv("GROUPOFFICE_VERIFY_SSL", "true").lower() == "true",
+            verify_ssl=_env_flag("GROUPOFFICE_VERIFY_SSL", default=True),
             timeout=float(os.getenv("GROUPOFFICE_TIMEOUT", "30")),
             max_retries=int(os.getenv("GROUPOFFICE_MAX_RETRIES", "3")),
-            debug=os.getenv("GROUPOFFICE_DEBUG", "false").lower() == "true",
-            read_only=os.getenv("GROUPOFFICE_READONLY", "true").lower() == "true",
+            debug=_env_flag("GROUPOFFICE_DEBUG", default=False),
+            read_only=_env_flag("GROUPOFFICE_READONLY", default=True),
         )
 
     @property
