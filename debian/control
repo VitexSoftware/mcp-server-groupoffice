@@ -9,7 +9,7 @@ Build-Depends:
  pybuild-plugin-pyproject,
  python3-all,
  python3-build,
- python3-fastmcp,
+ python3-fastmcp (>= 4.1.4),
  python3-httpx,
  python3-pydantic,
  python3-setuptools,
@@ -24,7 +24,7 @@ Package: mcp-server-groupoffice
 Architecture: all
 Multi-Arch: foreign
 Depends:
- python3-fastmcp,
+ python3-fastmcp (>= 4.1.4),
  python3-httpx,
  python3-pydantic,
  ${misc:Depends},
