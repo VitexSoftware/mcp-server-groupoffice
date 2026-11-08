@@ -45,7 +45,7 @@ Package: mcprack-mcp-server-groupoffice
 Architecture: all
 Depends:
  ${misc:Depends},
- mcprack (>= 1.5.1),
+ mcprack (>= 1.6.0),
  mcp-server-groupoffice (= ${binary:Version}),
 Description: Registers GroupOffice MCP server into mcprack catalog
  Companion package for mcp-server-groupoffice. Installing it registers
